@@ -19,7 +19,7 @@ class ArticleController extends \App\Http\Controllers\Controller
     $articles = $articles->paginate($per_page);
     $articles = ArticleSmallResource::collection($articles);
 
-    return response()->json($articles);
+    return $articles;
   }
 
   public function show(Request $request, $slug) {
