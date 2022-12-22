@@ -1,13 +1,13 @@
 <?php
 
-namespace Backpack\Banners\Facades;
+namespace Backpack\Articles\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
-class Banner extends Facade
+class Article extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return 'banner';
+        return 'article';
     }
 }

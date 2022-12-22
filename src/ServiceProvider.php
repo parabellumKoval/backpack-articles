@@ -1,29 +1,25 @@
 <?php
 
-namespace Backpack\Banners;
+namespace Backpack\Articles;
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
 {
-    const CONFIG_PATH = __DIR__ . '/config/banners.php';
+    const CONFIG_PATH = __DIR__ . '/config/articles.php';
 
     public function boot()
     {
-      $this->loadTranslationsFrom(__DIR__.'/resources/lang', 'banners');
+      $this->loadTranslationsFrom(__DIR__.'/resources/lang', 'articles');
     
 	    // Migrations
 	    $this->loadMigrationsFrom(__DIR__.'/database/migrations');
 	    
 	    // Routes
     	$this->loadRoutesFrom(__DIR__.'/routes/backpack/routes.php');
-    	$this->loadRoutesFrom(__DIR__.'/routes/api/banners.php');
+    	$this->loadRoutesFrom(__DIR__.'/routes/api/articles.php');
     
 		  // Config
       $this->publishes([
-          self::CONFIG_PATH => config_path('backpack/banners.php'),
-      ], 'config');
-
-      $this->publishes([
-        self::CONFIG_PATH => config_path('/backpack/banners.php'),
+        self::CONFIG_PATH => config_path('/backpack/articles.php'),
       ], 'config');
       
       $this->publishes([
@@ -35,8 +31,8 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
       ], 'migrations');
   
       $this->publishes([
-          __DIR__.'/routes/backpack/routes.php' => resource_path('/routes/backpack/banners/backpack.php'),
-          __DIR__.'/routes/api/banners.php' => resource_path('/routes/backpack/banners/banners.php'),
+          __DIR__.'/routes/backpack/routes.php' => resource_path('/routes/backpack/articles/backpack.php'),
+          __DIR__.'/routes/api/articles.php' => resource_path('/routes/backpack/articles/articles.php'),
       ], 'routes');
 
     }
@@ -45,11 +41,11 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
     {
         $this->mergeConfigFrom(
             self::CONFIG_PATH,
-            'banners'
+            'articles'
         );
 
-        $this->app->bind('banner', function () {
-            return new Banner();
+        $this->app->bind('article', function () {
+            return new Article();
         });
     }
 }

@@ -1,13 +1,13 @@
 <?php
 
-namespace Backpack\Banners\database\seeders;
+namespace Backpack\Articles\database\seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 
-use Backpack\Banners\app\Models\Banner;
+use Backpack\Articles\app\Models\Article;
 
-class BannersSeeder extends Seeder
+class ArticlesSeeder extends Seeder
 {
     /**
      * Seed the application's database.
@@ -16,8 +16,8 @@ class BannersSeeder extends Seeder
      */
     public function run()
     {
-      Banner::factory()
-          ->count(3)
+      Article::factory()
+          ->count(30)
           ->create();
     }
 }

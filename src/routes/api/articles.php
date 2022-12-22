@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-use Backpack\Banners\app\Http\Controllers\Api\BannerController;
+use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,9 +16,9 @@ use Backpack\Banners\app\Http\Controllers\Api\BannerController;
 |
 */
 
-Route::prefix('api/banners')->controller(BannerController::class)->group(function () {
+Route::prefix('api/articles')->controller(ArticleController::class)->group(function () {
   
   Route::get('', 'index');
-  Route::get('{id_or_slug}', 'show');
+  Route::get('{slug}', 'show');
 
 });

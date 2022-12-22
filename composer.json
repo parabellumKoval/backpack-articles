@@ -1,13 +1,13 @@
 {
-  "name": "parabellumkoval/backpack-banners",
-  "description": "Implement Banners API & MYSQL for backpack",
+  "name": "parabellumkoval/backpack-articles",
+  "description": "Implement Articles API & MYSQL for backpack",
   "keywords": [
     "parabellumKoval",
     "backpack",
     "laravel",
-    "banners"
+    "articles"
   ],
-  "homepage": "https://github.com/parabellumkoval/backpack-banners",
+  "homepage": "https://github.com/parabellumkoval/backpack-articles",
   "license": "MIT",
   "type": "library",
   "authors": [
@@ -34,13 +34,13 @@
   },
   "autoload": {
     "psr-4": {
-        "Backpack\\Banners\\": "src",
-        "Backpack\\Banners\\Database\\Factories\\": "database/factories"
+        "Backpack\\Articles\\": "src",
+        "Backpack\\Articles\\Database\\Factories\\": "database/factories"
     }
   },
   "autoload-dev": {
     "psr-4": {
-        "Backpack\\Banners\\Tests\\": "tests"
+        "Backpack\\Articles\\Tests\\": "tests"
     }
   },
   "scripts": {
@@ -60,10 +60,10 @@
   "extra": {
       "laravel": {
           "providers": [
-            "Backpack\\Banners\\ServiceProvider"
+            "Backpack\\Articles\\ServiceProvider"
           ],
           "aliases": {
-            "Product": "Backpack\\Banners\\Facades\\Banner"
+            "Product": "Backpack\\Articles\\Facades\\Article"
           }
       }
   },

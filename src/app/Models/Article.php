@@ -1,22 +1,19 @@
 <?php
 
-namespace Backpack\Banners\app\Models;
+namespace Backpack\Articles\app\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Model;
 
-use Backpack\CRUD\app\Models\Traits\SpatieTranslatable\HasTranslations;
-
 // FACTORY
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Backpack\Banners\database\factories\BannerFactory;
+use Backpack\Articles\database\factories\ArticleFactory;
 
-class Banner extends Model
+class Article extends Model
 {
     use CrudTrait;
     use HasFactory;
-    use HasTranslations;
 
     /*
     |--------------------------------------------------------------------------
@@ -24,7 +21,7 @@ class Banner extends Model
     |--------------------------------------------------------------------------
     */
 
-    protected $table = 'ak_banners';
+    protected $table = 'ak_articles';
     // protected $primaryKey = 'id';
     // public $timestamps = false;
     protected $guarded = ['id'];
@@ -33,14 +30,13 @@ class Banner extends Model
     // protected $dates = [];
 
     protected $casts = [
-      'items' => 'array'
+      'extras' => 'array',
+      'seo' => 'array'
     ];
 
     // protected $fakeColumns = [
     //   'items'
     // ];
-
-    protected $translatable = ['items'];
     /*
     |--------------------------------------------------------------------------
     | FUNCTIONS
@@ -49,10 +45,12 @@ class Banner extends Model
     public function toArray(){
 	    return [
 		    'id' => $this->id,
-		    'name' => $this->name,
+		    'title' => $this->title,
 		    'slug' => $this->slug,
-		    'items' => $this->items? json_decode($this->items): null,
-		    'is_active' => $this->is_active,
+		    'excerpt' => $this->excerpt,
+		    'content' => $this->content,
+		    'image' => $this->image,
+        'seo' => $this->seo
 	    ];
     }
 
@@ -63,7 +61,7 @@ class Banner extends Model
      */
     protected static function newFactory()
     {
-      return BannerFactory::new();
+      return ArticleFactory::new();
     }
     
     protected static function boot()
@@ -87,9 +85,9 @@ class Banner extends Model
     | SCOPES
     |--------------------------------------------------------------------------
     */
-    public function scopeActive($query)
+    public function scopePublished($query)
     {
-      return $query->where('is_active', 1);
+      return $query->where('status', 'PUBLISHED');
     }
 
     /*
