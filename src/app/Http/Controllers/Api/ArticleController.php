@@ -14,7 +14,7 @@ class ArticleController extends \App\Http\Controllers\Controller
   public function index(Request $request) {
     $per_page = request('per_page')? request('per_page'): config('backpack.articles.per_page', 12);
     
-    $articles = Article::published()->where('lang', request('lang'))->orderBy('created_at', 'desc');
+    $articles = Article::published()->where('lang', request('lang'))->orderBy('date', 'desc');
 
     $articles = $articles->paginate($per_page);
     $articles = ArticleSmallResource::collection($articles);
