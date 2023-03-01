@@ -32,4 +32,13 @@ class ArticleController extends \App\Http\Controllers\Controller
     return $article;
   }
 
+  public function random(Request $request) {
+    $limit = request('limit') ?? 4;
+    
+    $articles = Article::published()->where('lang', request('lang'))->inRandomOrder()->limit($limit)->get();
+    $articles = ArticleSmallResource::collection($articles);
+
+    return $articles;
+  }
+
 }
