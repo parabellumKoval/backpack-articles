@@ -34,9 +34,9 @@ class Article extends Model
       'seo' => 'array'
     ];
 
-    // protected $fakeColumns = [
-    //   'items'
-    // ];
+    protected $fakeColumns = [
+      'seo'
+    ];
     /*
     |--------------------------------------------------------------------------
     | FUNCTIONS
