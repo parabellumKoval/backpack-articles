@@ -20,7 +20,7 @@ class CreateAkArticlesTable extends Migration
             $table->string('title');
             $table->string('slug')->default('');
             $table->text('content');
-            $table->string('excerpt', 255)->nullable();
+            $table->text('excerpt')->nullable();
             $table->string('image')->nullable();
             $table->enum('status', ['PUBLISHED', 'DRAFT'])->default('PUBLISHED');
             $table->date('date')->nullable();

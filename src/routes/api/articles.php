@@ -19,7 +19,9 @@ use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
 Route::prefix('api/articles')->controller(ArticleController::class)->group(function () {
   
   Route::get('', 'index');
+
   Route::get('/random', 'random');
+  
   Route::get('{slug}', 'show');
 
 });
