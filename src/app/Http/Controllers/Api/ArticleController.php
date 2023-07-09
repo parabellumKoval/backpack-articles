@@ -11,13 +11,21 @@ use Backpack\Articles\app\Http\Resources\ArticleSmallResource;
 class ArticleController extends \App\Http\Controllers\Controller
 { 
 
+  protected $small_resource;
+  protected $large_resource;
+
+  function __construct() {
+    $this->small_resource = config('backpack.articles.resource.small', 'Backpack\Articles\app\Http\Resources\ArticleSmallResource');
+    $this->large_resource = config('backpack.articles.resource.large', 'Backpack\Articles\app\Http\Resources\ArticleLargeResource');
+  }
+
   public function index(Request $request) {
     $per_page = request('per_page')? request('per_page'): config('backpack.articles.per_page', 12);
     
-    $articles = Article::published()->where('lang', request('lang'))->orderBy('date', 'desc');
+    $articles = Article::published()->orderBy('date', 'desc');
 
     $articles = $articles->paginate($per_page);
-    $articles = ArticleSmallResource::collection($articles);
+    $articles = $this->small_resource::collection($articles);
 
     return $articles;
   }
@@ -29,14 +37,13 @@ class ArticleController extends \App\Http\Controllers\Controller
       return response()->json($e->getMessage(), 404);
     }
 
-    return $article;
+    return new $this->large_resource($article);
   }
 
   public function random(Request $request) {
     $limit = request('limit') ?? 4;
     
     $articles = Article::published()
-                  ->where('lang', request('lang'))
                   ->when(request('not_id'), function($query) {
                     $query->where('id', '!=', request('not_id'));
                   })
@@ -44,7 +51,7 @@ class ArticleController extends \App\Http\Controllers\Controller
                   ->limit($limit)
                   ->get();
 
-    $articles = ArticleSmallResource::collection($articles);
+    $articles = $this->small_resource::collection($articles);
 
     return $articles;
   }

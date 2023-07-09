@@ -10,10 +10,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Backpack\Articles\database\factories\ArticleFactory;
 
+// SLUGS
+use Cviebrock\EloquentSluggable\Sluggable;
+use Cviebrock\EloquentSluggable\SluggableScopeHelpers;
+
+// TRANSLATIONS
+use Backpack\CRUD\app\Models\Traits\SpatieTranslatable\HasTranslations;
+
 class Article extends Model
 {
     use CrudTrait;
     use HasFactory;
+    use Sluggable;
+    use SluggableScopeHelpers;
+    use HasTranslations;
 
     /*
     |--------------------------------------------------------------------------
@@ -30,13 +40,16 @@ class Article extends Model
     // protected $dates = [];
 
     protected $casts = [
-      'extras' => 'array',
-      'seo' => 'array'
+      //'extras' => 'array',
+      // 'seo' => 'array'
     ];
 
     protected $fakeColumns = [
-      'seo'
+      'meta_description', 'meta_title', 'seo', 'extras', 'faq'
     ];
+
+    protected $translatable = ['title', 'excerpt', 'content', 'extras', 'seo'];
+
     /*
     |--------------------------------------------------------------------------
     | FUNCTIONS
@@ -52,6 +65,16 @@ class Article extends Model
 		    'image' => $this->image,
         'seo' => $this->seo
 	    ];
+    }
+
+    
+    public function sluggable():array
+    {
+        return [
+            'slug' => [
+                'source' => 'slug_or_title',
+            ],
+        ];
     }
 
     /**
@@ -95,6 +118,19 @@ class Article extends Model
     | ACCESSORS
     |--------------------------------------------------------------------------
     */
+    
+    /**
+     * getSlugOrNameAttribute
+     *
+     * @return void
+     */
+    public function getSlugOrTitleAttribute()
+    {
+        if ($this->slug != '') {
+            return $this->slug;
+        }
+        return $this->title;
+    }
 
     /*
     |--------------------------------------------------------------------------

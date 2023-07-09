@@ -35,14 +35,18 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
           __DIR__.'/routes/api/articles.php' => resource_path('/routes/backpack/articles/articles.php'),
       ], 'routes');
 
+
+      $this->publishes([
+        __DIR__.'/app/Traits/Controllers/Admin' => base_path('app/Http/Controllers/Admin/Traits'),
+      ], 'traits');
     }
 
     public function register()
     {
-        $this->mergeConfigFrom(
-            self::CONFIG_PATH,
-            'articles'
-        );
+        // $this->mergeConfigFrom(
+        //     self::CONFIG_PATH,
+        //     'articles'
+        // );
 
         $this->app->bind('article', function () {
             return new Article();

@@ -19,6 +19,8 @@ class ArticleCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
     
+    use \App\Http\Controllers\Admin\Traits\ArticleCrud;
+
     public function setup()
     {
         $this->crud->setModel('Backpack\Articles\app\Models\Article');
@@ -55,15 +57,6 @@ class ArticleCrudController extends CrudController
     {
       $this->crud->setValidation(ArticleRequest::class);
 			
-      $langs = config('backpack.crud.locales', ['en' => 'English']);
-
-      $this->crud->addField([
-        'name' => 'lang',
-        'label' => 'Язык',
-        'type' => 'select_from_array',
-        'options' => $langs,
-        'tab' => 'Основное'
-      ]);
 
       $this->crud->addField([
           'name' => 'title',
@@ -152,6 +145,9 @@ class ArticleCrudController extends CrudController
         'store_in' => 'seo',
         'tab' => 'SEO'
       ]);
+
+
+      $this->createOperation();
     }
 
     protected function setupUpdateOperation()
