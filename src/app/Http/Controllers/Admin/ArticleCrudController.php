@@ -101,7 +101,8 @@ class ArticleCrudController extends CrudController
           'name' => 'image',
           'label' => 'Изображение',
           'type' => 'browse',
-          'tab' => 'Основное'
+          'tab' => 'Основное',
+          'hint' => 'Названия файлов загруженных через файловый менеджен должны быть на латинице и без пробелов.'
       ]);
 
       // $this->crud->addField([
