@@ -51,6 +51,8 @@ class ArticleCrudController extends CrudController
 								'label' => 'Статус',
 						],
         ]);
+
+        $this->listOperation();
     }
 
     protected function setupCreateOperation()
@@ -154,5 +156,7 @@ class ArticleCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
+
+        $this->updateOperation();
     }
 }

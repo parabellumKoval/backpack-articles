@@ -15,8 +15,6 @@ class CreateAkArticlesTable extends Migration
     {
         Schema::create('ak_articles', function (Blueprint $table) {
             $table->id();
-            // $table->string('lang', 10)->nullable();
-            // $table->foreignId('category_id')->nullable();
             $table->json('title');
             $table->string('slug')->default('');
             $table->json('content');
@@ -25,6 +23,7 @@ class CreateAkArticlesTable extends Migration
             $table->enum('status', ['PUBLISHED', 'DRAFT'])->default('PUBLISHED');
             $table->date('date')->nullable();
             $table->json('extras')->nullable();
+            $table->json('extras_trans')->nullable();
             $table->json('seo')->nullable();
             $table->timestamps();
         });
