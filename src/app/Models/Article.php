@@ -45,10 +45,10 @@ class Article extends Model
     ];
 
     protected $fakeColumns = [
-      'meta_description', 'meta_title', 'seo', 'extras', 'faq'
+      'meta_description', 'meta_title', 'seo', 'extras_trans', 'extras', 'faq'
     ];
 
-    protected $translatable = ['title', 'excerpt', 'content', 'extras', 'seo'];
+    protected $translatable = ['title', 'excerpt', 'content', 'extras_trans', 'seo'];
 
     /*
     |--------------------------------------------------------------------------
