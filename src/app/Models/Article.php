@@ -40,12 +40,11 @@ class Article extends Model
     // protected $dates = [];
 
     protected $casts = [
-      //'extras' => 'array',
-      // 'seo' => 'array'
+      'extras' => 'array'
     ];
 
     protected $fakeColumns = [
-      'meta_description', 'meta_title', 'seo', 'extras_trans', 'extras', 'faq'
+      'meta_description', 'meta_title', 'extras_trans', 'seo', 'extras'
     ];
 
     protected $translatable = ['title', 'excerpt', 'content', 'extras_trans', 'seo'];
