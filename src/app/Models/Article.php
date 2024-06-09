@@ -131,6 +131,17 @@ class Article extends Model
         return $this->title;
     }
 
+    public function getSeoArrayAttribute() {
+      return [
+        'meta_title' => $this->seoDecoded->meta_title ?? null,
+        'meta_description' => $this->seoDecoded->meta_description ?? null,
+      ];
+    }
+
+    public function getSeoDecodedAttribute() {
+      return !empty($this->seo)? json_decode($this->seo): null;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | MUTATORS
