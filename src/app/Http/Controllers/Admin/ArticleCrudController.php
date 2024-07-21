@@ -21,9 +21,13 @@ class ArticleCrudController extends CrudController
     
     use \App\Http\Controllers\Admin\Traits\ArticleCrud;
 
+    private $article_class = null;
+
     public function setup()
     {
-        $this->crud->setModel('Backpack\Articles\app\Models\Article');
+      $this->article_class = config('backpack.articles.class', 'Backpack\Articles\app\Models\Article');
+
+        $this->crud->setModel($this->article_class);
         $this->crud->setRoute(config('backpack.base.route_prefix') . '/article');
         $this->crud->setEntityNameStrings('статья', 'Статьи');
     }
@@ -36,11 +40,11 @@ class ArticleCrudController extends CrudController
               'label' => 'ID',
             ],
             [
-              'name' => 'image',
-              'label' => 'Фото',
+              'name' => 'imageSrc',
+              'label' => '📷',
               'type' => 'image',
-              'height' => '50px',
-              'width'  => '50px',
+              'height' => '60px',
+              'width'  => '40px',
             ],
             [
 								'name' => 'title',
@@ -99,13 +103,44 @@ class ArticleCrudController extends CrudController
           'tab' => 'Основное'
       ]);
 
-      $this->crud->addField([
-          'name' => 'image',
-          'label' => 'Изображение',
-          'type' => 'browse',
-          'tab' => 'Основное',
-          'hint' => 'Названия файлов загруженных через файловый менеджен должны быть на латинице и без пробелов.'
-      ]);
+      
+        // IMAGES
+        if(config('backpack.articles.images.enable', true)) {
+          $this->crud->addField([
+            'name'  => 'images',
+            'label' => 'Изображения',
+            'type'  => 'repeatable',
+            'fields' => [
+              [
+                'name' => 'src',
+                'label' => 'Изображение',
+                'type' => 'browse',
+              ],
+              [
+                'name' => 'alt',
+                'label' => 'alt'
+              ],
+              [
+                'name' => 'title',
+                'label' => 'title'
+              ],
+              [
+                'name' => 'size',
+                'type' => 'radio',
+                'label' => 'Размер',
+                'options' => [
+                  'cover' => 'Cover',
+                  'contain' => 'Contain'
+                ],
+                'inline' => true
+              ]
+            ],
+            'new_item_label'  => 'Добавить изобрежение',
+            'init_rows' => 1,
+            'default' => [],
+            'tab' => 'Изображения'
+          ]);
+        }
 
       // $this->crud->addField([
       //     'label' => 'Category',

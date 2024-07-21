@@ -40,7 +40,8 @@ class Article extends Model
     // protected $dates = [];
 
     protected $casts = [
-      'extras' => 'array'
+      'extras' => 'array',
+      'images' => 'array'
     ];
 
     protected $fakeColumns = [
@@ -131,13 +132,54 @@ class Article extends Model
         return $this->title;
     }
 
+
+    /**
+     * getImageAttribute
+     *
+     * Get first image from images array of the product or get image from parent product if exists 
+     * 
+     * @return Array|null Image is array(src, alt, title, size) 
+     */
+    public function getImageAttribute() {
+      $image = $this->images[0] ?? null;
+
+      return $image;
+    }
+
+    /**
+     * getImageSrcAttribute
+     *
+     * Get src url address from getImageAttribute method
+     * 
+     * @return string|null string is image src url
+     */
+    public function getImageSrcAttribute() {
+      $base_path = config('backpack.articles.image.base_path', '/');
+
+      if(isset($this->image['src'])) {
+        return $base_path . $this->image['src'];
+      }else {
+        return null;
+      }
+    }
+    
+    /**
+     * getSeoArrayAttribute
+     *
+     * @return void
+     */
     public function getSeoArrayAttribute() {
       return [
         'meta_title' => $this->seoDecoded->meta_title ?? null,
         'meta_description' => $this->seoDecoded->meta_description ?? null,
       ];
     }
-
+    
+    /**
+     * getSeoDecodedAttribute
+     *
+     * @return void
+     */
     public function getSeoDecodedAttribute() {
       return !empty($this->seo)? json_decode($this->seo): null;
     }

@@ -19,7 +19,7 @@ class CreateAkArticlesTable extends Migration
             $table->string('slug')->default('');
             $table->json('content');
             $table->json('excerpt')->nullable();
-            $table->string('image')->nullable();
+            $table->json('images')->nullable();
             $table->enum('status', ['PUBLISHED', 'DRAFT'])->default('PUBLISHED');
             $table->date('date')->nullable();
             $table->json('extras')->nullable();
