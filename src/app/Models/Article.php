@@ -44,9 +44,7 @@ class Article extends Model
       'images' => 'array'
     ];
 
-    protected $fakeColumns = [
-      'meta_description', 'meta_title', 'extras_trans', 'seo', 'extras'
-    ];
+    protected $fakeColumns = ['meta_description', 'meta_title', 'extras_trans', 'seo', 'extras', 'images'];
 
     protected $translatable = ['title', 'excerpt', 'content', 'extras_trans', 'seo'];
 

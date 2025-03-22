@@ -35,25 +35,25 @@ class ArticleCrudController extends CrudController
     protected function setupListOperation()
     {   
         $this->crud->addColumns([
-            [
-              'name' => 'id',
-              'label' => 'ID',
-            ],
-            [
-              'name' => 'imageSrc',
-              'label' => '📷',
-              'type' => 'image',
-              'height' => '60px',
-              'width'  => '40px',
-            ],
-            [
-								'name' => 'title',
-								'label' => 'Название',
-						],
-						[
-								'name' => 'status',
-								'label' => 'Статус',
-						],
+          [
+            'name' => 'id',
+            'label' => 'ID',
+          ],
+          [
+            'name' => 'imageSrc',
+            'label' => '📷',
+            'type' => 'image',
+            'height' => '80px',
+            'width'  => '80px',
+          ],
+          [
+              'name' => 'title',
+              'label' => 'Название',
+          ],
+          [
+              'name' => 'status',
+              'label' => 'Статус',
+          ],
         ]);
 
         $this->listOperation();
