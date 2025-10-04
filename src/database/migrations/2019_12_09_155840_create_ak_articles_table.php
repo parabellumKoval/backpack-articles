@@ -26,6 +26,7 @@ class CreateAkArticlesTable extends Migration
             $table->date('date')->nullable();
             $table->json('extras')->nullable();
             $table->json('seo')->nullable();
+            $table->json('countries')->nullable();
             $table->timestamps();
         });
     }
