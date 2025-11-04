@@ -21,12 +21,12 @@ class CreateAkArticlesTable extends Migration
             $table->string('slug')->default('');
             $table->text('content');
             $table->text('excerpt')->nullable();
-            $table->string('image')->nullable();
             $table->enum('status', ['PUBLISHED', 'DRAFT'])->default('PUBLISHED');
-            $table->date('date')->nullable();
+            $table->json('images')->nullable();
             $table->json('extras')->nullable();
             $table->json('seo')->nullable();
             $table->json('countries')->nullable();
+            $table->timestamp('published_at')->nullable();
             $table->timestamps();
         });
     }

@@ -6,6 +6,9 @@ use Backpack\Articles\app\Http\Requests\ArticleRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
+use ParabellumKoval\BackpackImages\Traits\HasImagesCrudComponents;
+use Backpack\Tag\app\Traits\TagFields;
+
 /**
  * Class BannerCrudController
  * @package App\Http\Controllers\Admin
@@ -19,6 +22,9 @@ class ArticleCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
     
+    use HasImagesCrudComponents;
+    use TagFields;
+
     public function setup()
     {
         $this->crud->setModel('Backpack\Articles\app\Models\Article');
@@ -28,27 +34,34 @@ class ArticleCrudController extends CrudController
 
     protected function setupListOperation()
     {   
-        $this->crud->addColumns([
-            [
-              'name' => 'id',
-              'label' => 'ID',
-            ],
-            [
-              'name' => 'image',
-              'label' => 'Фото',
-              'type' => 'image',
-              'height' => '50px',
-              'width'  => '50px',
-            ],
-            [
-								'name' => 'title',
-								'label' => 'Название',
-						],
-						[
-								'name' => 'status',
-								'label' => 'Статус',
-						],
+
+        $this->setupFilers();
+
+
+        $this->addImagesColumn(['label' => 'Preview']);
+
+        CRUD::addColumn([
+            'name' => 'title',
+            'label' => 'Название',
         ]);
+
+        CRUD::addColumn([
+            'name' => 'slug',
+            'label' => 'Slug',
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'status',
+            'label' => 'Статус',
+        ]);
+        
+        CRUD::addColumn([
+            'name' => 'published_at',
+            'label' => 'Дата',
+            'type' => 'datetime'
+        ]);
+
+        $this->setupTagColumns();
     }
 
     protected function setupCreateOperation()
@@ -82,10 +95,9 @@ class ArticleCrudController extends CrudController
       ]);
 
       $this->crud->addField([
-          'name' => 'date',
+          'name' => 'published_at',
           'label' => 'Дата публикации',
-          'type' => 'date',
-          'default' => date('Y-m-d'),
+          'type' => 'datetime',
           'tab' => 'Основное'
       ]);
 
@@ -101,13 +113,6 @@ class ArticleCrudController extends CrudController
           'name' => 'excerpt',
           'label' => 'Краткое описание',
           'type' => 'ckeditor',
-          'tab' => 'Основное'
-      ]);
-
-      $this->crud->addField([
-          'name' => 'image',
-          'label' => 'Изображение',
-          'type' => 'browse',
           'tab' => 'Основное'
       ]);
 
@@ -132,6 +137,11 @@ class ArticleCrudController extends CrudController
           'tab' => 'Основное'
       ]);
 
+      $this->setupTagFields();
+      $this->crud->modifyField('tags', ['tab' => 'Основное']);
+
+
+        $this->addImagesField();
 
       // META TITLE
       $this->crud->addField([

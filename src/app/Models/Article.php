@@ -10,10 +10,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Backpack\Articles\database\factories\ArticleFactory;
 
+// SLUGS
+use Cviebrock\EloquentSluggable\Sluggable;
+use Cviebrock\EloquentSluggable\SluggableScopeHelpers;
+
+// Images
+use ParabellumKoval\BackpackImages\Traits\HasImages;
+use Backpack\Tag\app\Traits\Taggable;
+
 class Article extends Model
 {
     use CrudTrait;
     use HasFactory;
+    use Sluggable;
+    use SluggableScopeHelpers;
+    use HasImages;
+    use Taggable;
 
     /*
     |--------------------------------------------------------------------------
@@ -27,30 +39,42 @@ class Article extends Model
     protected $guarded = ['id'];
     // protected $fillable = [];
     // protected $hidden = [];
-    // protected $dates = [];
+    protected $dates = ['published_at'];
 
     protected $casts = [
       'extras' => 'array',
-      'seo' => 'array'
+      'seo' => 'array',
+      'images' => 'array'
     ];
 
     protected $fakeColumns = [
       'seo'
     ];
+    
     /*
     |--------------------------------------------------------------------------
     | FUNCTIONS
     |--------------------------------------------------------------------------
     */
     public function toArray(){
+        $tags = $this->relationLoaded('tags')
+            ? $this->tags->map(function ($tag) {
+                return [
+                    'id' => $tag->id,
+                    'text' => $tag->text,
+                    'color' => $tag->color,
+                ];
+            })->toArray()
+            : [];
 	    return [
 		    'id' => $this->id,
 		    'title' => $this->title,
 		    'slug' => $this->slug,
 		    'excerpt' => $this->excerpt,
 		    'content' => $this->content,
-		    'image' => $this->image,
-        'seo' => $this->seo
+		    'image' => $this->getFirstImageForApi(),
+            'seo' => $this->seo,
+            'tags' => $tags,
 	    ];
     }
 
@@ -72,6 +96,31 @@ class Article extends Model
     public function clearGlobalScopes()
     {
         static::$globalScopes = [];
+    }
+
+    
+    public static function imageProviderName(?string $attribute = null): string
+    {
+        return 'local';
+    }
+
+    public static function imageStorageFolder(?string $attribute = null): string
+    {
+        return 'articles';
+    }
+
+    // public static function imageFieldPrefix(): string
+    // {
+    //     return (string) config('services.cdn.articles_url', '/');
+    // }
+
+    public function sluggable():array
+    {
+        return [
+            'slug' => [
+                'source' => 'slug_or_title',
+            ],
+        ];
     }
 
     /*
@@ -96,6 +145,18 @@ class Article extends Model
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * getSlugOrTitleAttribute
+     *
+     * @return void
+     */
+    public function getSlugOrTitleAttribute()
+    {
+        if ($this->slug != '') {
+            return $this->slug;
+        }
+        return $this->title;
+    }
     /*
     |--------------------------------------------------------------------------
     | MUTATORS

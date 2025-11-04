@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
+use Backpack\Articles\app\Http\Middleware\SetLocaleFromHeader;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,7 +19,8 @@ use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
 
 Route::prefix('api/articles')->controller(ArticleController::class)->group(function () {
   
-  Route::get('', 'index');
+  Route::get('', 'index')->middleware([SetLocaleFromHeader::class]);
+  Route::get('/grouped-by-tags', 'groupedByTags')->middleware([SetLocaleFromHeader::class]);
 
   Route::get('/random', 'random');
   

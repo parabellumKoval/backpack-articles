@@ -19,7 +19,16 @@ class ArticleSmallResource extends JsonResource
 		    'title' => $this->title,
 		    'slug' => $this->slug,
 		    'excerpt' => $this->excerpt,
-		    'image' => $this->image,
+		    'image' => $this->getFirstImageForApi(),
+        'tags' => $this->resource->relationLoaded('tags')
+          ? $this->tags->map(function ($tag) {
+              return [
+                'id' => $tag->id,
+                'text' => $tag->text,
+                'color' => $tag->color,
+              ];
+            })->values()
+          : [],
       ];
     }
 }
