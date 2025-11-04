@@ -116,6 +116,19 @@ class ArticleCrudController extends CrudController
           'tab' => 'Основное'
       ]);
 
+      $this->crud->addField([
+          'name' => 'reading_time_minutes',
+          'label' => 'Минуты чтения',
+          'type' => 'number',
+          'attributes' => [
+              'min' => 1,
+              'step' => 1,
+          ],
+          'fake' => true,
+          'store_in' => 'extras',
+          'tab' => 'Основное'
+      ]);
+
       // $this->crud->addField([
       //     'label' => 'Category',
       //     'type' => 'relationship',

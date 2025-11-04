@@ -48,7 +48,8 @@ class Article extends Model
     ];
 
     protected $fakeColumns = [
-      'seo'
+      'seo',
+      'extras',
     ];
     
     /*
@@ -62,7 +63,6 @@ class Article extends Model
                 return [
                     'id' => $tag->id,
                     'text' => $tag->text,
-                    'color' => $tag->color,
                 ];
             })->toArray()
             : [];
@@ -75,6 +75,7 @@ class Article extends Model
 		    'image' => $this->getFirstImageForApi(),
             'seo' => $this->seo,
             'tags' => $tags,
+            'time' =>  $this->time,
 	    ];
     }
 
@@ -107,6 +108,16 @@ class Article extends Model
     public static function imageStorageFolder(?string $attribute = null): string
     {
         return 'articles';
+    }
+
+
+    public static function imageCollections(): array
+    {
+        return [
+            static::imageAttributeName() => [
+                'folder' => static::imageStorageFolder(),
+            ],
+        ];
     }
 
     // public static function imageFieldPrefix(): string
@@ -156,6 +167,10 @@ class Article extends Model
             return $this->slug;
         }
         return $this->title;
+    }
+
+    public function getTimeAttribute() {
+        return $this->extras['reading_time_minutes'] ?? null;
     }
     /*
     |--------------------------------------------------------------------------
