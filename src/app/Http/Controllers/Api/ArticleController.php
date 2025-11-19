@@ -19,7 +19,7 @@ class ArticleController extends \App\Http\Controllers\Controller
     
     $locale = app()->getLocale();
     $articles = Article::published()
-      ->where('lang', $locale)
+      ->availableInLocale($locale)
       ->with('tags')
       ->orderBy('published_at', 'desc');
 
@@ -42,9 +42,12 @@ class ArticleController extends \App\Http\Controllers\Controller
   }
 
   public function show(Request $request, $slug) {
+    $locale = app()->getLocale();
     try{
       $article = Article::published()
+        ->availableInLocale($locale)
         ->with('tags')
+        ->withContentLocales([$locale, config('app.fallback_locale')])
         ->where('slug', $slug)
         ->firstOrFail();
     }catch(ModelNotFoundException $e) {
@@ -59,7 +62,7 @@ class ArticleController extends \App\Http\Controllers\Controller
     $locale = app()->getLocale();
     
     $articles = Article::published()
-                  ->where('lang', $locale)
+                  ->availableInLocale($locale)
                   ->when($request->input('not_id'), function($query) use ($request) {
                     $query->where('id', '!=', $request->input('not_id'));
                   })
@@ -82,19 +85,22 @@ class ArticleController extends \App\Http\Controllers\Controller
     $tagIds = $this->extractTagIds($request);
     $tagTexts = $this->extractTagTexts($request);
 
+    // Get tags that have published articles in the current locale
     $tagsQuery = Tag::query()
-      ->whereHas('articles', function ($query) use ($locale) {
-        $query->published()->where('lang', $locale);
+      ->whereExists(function ($query) use ($locale) {
+        $query->select('id')
+              ->from('ak_taggables')
+              ->whereColumn('ak_taggables.tag_id', 'ak_tags.id')
+              ->where('ak_taggables.taggable_type', (new Article)->getMorphClass())
+              ->whereExists(function ($subQuery) use ($locale) {
+                $subQuery->select('id')
+                         ->from('ak_articles')
+                         ->whereColumn('ak_articles.id', 'ak_taggables.taggable_id')
+                         ->where('ak_articles.status', 'PUBLISHED');
+                Article::addTranslationAvailabilityClause($subQuery, 'ak_articles.title', $locale);
+              });
       })
-      ->with(['articles' => function ($query) use ($locale, $perTag) {
-        $query->published()
-          ->where('lang', $locale)
-          ->with('tags')
-          ->orderBy('published_at', 'desc')
-          ->limit($perTag);
-      }])
       ->orderBy('text');
-
 
     if (!empty($tagIds)) {
       $tagsQuery->whereIn('id', $tagIds);
@@ -106,9 +112,17 @@ class ArticleController extends \App\Http\Controllers\Controller
 
     $tags = $tagsQuery->get();
 
-    $grouped = $tags->mapWithKeys(function ($tag) use ($request) {
+    $grouped = $tags->mapWithKeys(function ($tag) use ($request, $locale, $perTag) {
+      $articles = $tag->getTaggedModels(Article::class)
+        ->published()
+        ->availableInLocale($locale)
+        ->with('tags')
+        ->orderBy('published_at', 'desc')
+        ->limit($perTag)
+        ->get();
+
       return [
-        $tag->text => ArticleSmallResource::collection($tag->articles)->toArray($request),
+        $tag->text => ArticleSmallResource::collection($articles)->toArray($request),
       ];
     })->toArray();
 

@@ -8,6 +8,9 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
 
     public function boot()
     {
+      // Register articles namespace for review cards
+      \Illuminate\Support\Facades\View::addNamespace('articles', __DIR__.'/resources/views');
+
       $this->loadTranslationsFrom(__DIR__.'/resources/lang', 'articles');
     
 	    // Migrations

@@ -26,7 +26,8 @@ class ArticleRequest extends FormRequest
     public function rules()
     {
         return [
-            // 'name' => 'required|min:5|max:255'
+            'countries' => ['nullable', 'array'],
+            'countries.*' => ['string', 'max:10'],
         ];
     }
 

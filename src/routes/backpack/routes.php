@@ -6,5 +6,9 @@ Route::group([
   'namespace'  => 'Backpack\Articles\app\Http\Controllers\Admin',
 ], function () { 
     Route::crud('article', 'ArticleCrudController');
+    Route::post('article/{id}/toggle', [
+        'as' => 'article.toggle',
+        'uses' => 'ArticleCrudController@toggleColumnRouter',
+        'operation' => 'list',
+    ]);
 }); 
-

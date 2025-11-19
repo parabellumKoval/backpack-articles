@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
@@ -17,13 +16,12 @@ use Backpack\Articles\app\Http\Middleware\SetLocaleFromHeader;
 |
 */
 
-Route::prefix('api/articles')->controller(ArticleController::class)->group(function () {
-  
-  Route::get('', 'index')->middleware([SetLocaleFromHeader::class]);
-  Route::get('/grouped-by-tags', 'groupedByTags')->middleware([SetLocaleFromHeader::class]);
-
-  Route::get('/random', 'random');
-  
-  Route::get('{slug}', 'show');
-
-});
+Route::prefix('api/articles')
+    ->middleware([SetLocaleFromHeader::class])
+    ->controller(ArticleController::class)
+    ->group(function () {
+        Route::get('', 'index');
+        Route::get('/grouped-by-tags', 'groupedByTags');
+        Route::get('/random', 'random');
+        Route::get('{slug}', 'show');
+    });
