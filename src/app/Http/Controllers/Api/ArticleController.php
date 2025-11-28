@@ -17,9 +17,10 @@ class ArticleController extends \App\Http\Controllers\Controller
     $per_page = (int) ($request->input('per_page') ?? config('backpack.articles.per_page', 12));
     $per_page = max(1, min($per_page, 100));
     
-    $locale = app()->getLocale();
+    $region = is_string($request->input('country')) ? $request->input('country') : null;
+
     $articles = Article::published()
-      ->availableInLocale($locale)
+      ->availableInRegion($region)
       ->with('tags')
       ->orderBy('published_at', 'desc');
 
@@ -43,9 +44,10 @@ class ArticleController extends \App\Http\Controllers\Controller
 
   public function show(Request $request, $slug) {
     $locale = app()->getLocale();
+    $region = is_string($request->input('country')) ? $request->input('country') : null;
     try{
       $article = Article::published()
-        ->availableInLocale($locale)
+        ->availableInRegion($region)
         ->with('tags')
         ->withContentLocales([$locale, config('app.fallback_locale')])
         ->where('slug', $slug)
@@ -59,10 +61,10 @@ class ArticleController extends \App\Http\Controllers\Controller
 
   public function random(Request $request) {
     $limit = request('limit') ?? 4;
-    $locale = app()->getLocale();
+    $region = is_string($request->input('country')) ? $request->input('country') : null;
     
     $articles = Article::published()
-                  ->availableInLocale($locale)
+                  ->availableInRegion($region)
                   ->when($request->input('not_id'), function($query) use ($request) {
                     $query->where('id', '!=', $request->input('not_id'));
                   })
@@ -82,47 +84,48 @@ class ArticleController extends \App\Http\Controllers\Controller
     $perTag = max(1, min($perTag, 50));
 
     $locale = app()->getLocale();
+    $region = is_string($request->input('country')) ? $request->input('country') : null;
     $tagIds = $this->extractTagIds($request);
     $tagTexts = $this->extractTagTexts($request);
 
     // Get tags that have published articles in the current locale
     $tagsQuery = Tag::query()
-      ->whereExists(function ($query) use ($locale) {
+      ->whereExists(function ($query) use ($locale, $region) {
         $query->select('id')
               ->from('ak_taggables')
               ->whereColumn('ak_taggables.tag_id', 'ak_tags.id')
               ->where('ak_taggables.taggable_type', (new Article)->getMorphClass())
-              ->whereExists(function ($subQuery) use ($locale) {
+              ->whereExists(function ($subQuery) use ($locale, $region) {
                 $subQuery->select('id')
                          ->from('ak_articles')
                          ->whereColumn('ak_articles.id', 'ak_taggables.taggable_id')
                          ->where('ak_articles.status', 'PUBLISHED');
-                Article::addTranslationAvailabilityClause($subQuery, 'ak_articles.title', $locale);
+                Article::addRegionAvailabilityClause($subQuery, 'ak_articles.countries', $region);
               });
       })
-      ->orderBy('text');
+      ->orderBy('value');
 
     if (!empty($tagIds)) {
       $tagsQuery->whereIn('id', $tagIds);
     }
 
     if (!empty($tagTexts)) {
-      $tagsQuery->whereIn('text', $tagTexts);
+      $tagsQuery->whereIn('value', $tagTexts);
     }
 
     $tags = $tagsQuery->get();
 
-    $grouped = $tags->mapWithKeys(function ($tag) use ($request, $locale, $perTag) {
+    $grouped = $tags->mapWithKeys(function ($tag) use ($request, $locale, $perTag, $region) {
       $articles = $tag->getTaggedModels(Article::class)
         ->published()
-        ->availableInLocale($locale)
+        ->availableInRegion($region)
         ->with('tags')
         ->orderBy('published_at', 'desc')
         ->limit($perTag)
         ->get();
 
       return [
-        $tag->text => ArticleSmallResource::collection($articles)->toArray($request),
+        $tag->value => ArticleSmallResource::collection($articles)->toArray($request),
       ];
     })->toArray();
 

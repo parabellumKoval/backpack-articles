@@ -110,6 +110,7 @@ class ArticleCrudController extends CrudController
         CRUD::addColumn([
             'name' => 'title',
             'label' => 'Название',
+            'type' => 'text_progress'
         ]);
 
         CRUD::addColumn([
@@ -120,7 +121,7 @@ class ArticleCrudController extends CrudController
         CRUD::addColumn([
             'name' => 'seo',
             'label' => 'SEO',
-            'type' => 'seo_status',
+            'type' => 'seo_status_linear',
             'seo_field' => 'seo',
             'properties' => [
                 'meta_title' => 'Meta title',

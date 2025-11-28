@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 use Backpack\Articles\app\Http\Controllers\Api\ArticleController;
 use Backpack\Articles\app\Http\Middleware\SetLocaleFromHeader;
+use Backpack\Articles\app\Http\Middleware\AddXRegionHeadersToRequest;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,7 +18,7 @@ use Backpack\Articles\app\Http\Middleware\SetLocaleFromHeader;
 */
 
 Route::prefix('api/articles')
-    ->middleware([SetLocaleFromHeader::class])
+    ->middleware([SetLocaleFromHeader::class, AddXRegionHeadersToRequest::class])
     ->controller(ArticleController::class)
     ->group(function () {
         Route::get('', 'index');

@@ -25,8 +25,7 @@ class ArticleSmallResource extends JsonResource
           ? $this->tags->map(function ($tag) {
               return [
                 'id' => $tag->id,
-                'text' => $tag->text,
-                // 'color' => $tag->color,
+                'text' => $tag->value,
               ];
             })->values()
           : [],

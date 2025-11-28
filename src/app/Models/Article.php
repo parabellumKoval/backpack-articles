@@ -2,6 +2,7 @@
 
 namespace Backpack\Articles\app\Models;
 
+use Backpack\Articles\app\Events\ArticleChanged;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Backpack\CRUD\app\Models\Traits\SpatieTranslatable\HasTranslations;
 use Backpack\Tag\app\Traits\Taggable;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use ParabellumKoval\BackpackImages\Traits\HasImages;
+use Backpack\Helpers\Traits\FormatsUniqAttribute;
 
 // FACTORY
 use Backpack\Articles\database\factories\ArticleFactory;
@@ -27,6 +29,7 @@ class Article extends Model
     use SluggableScopeHelpers;
     use HasImages;
     use Taggable;
+    use FormatsUniqAttribute;
 
     /*
     |--------------------------------------------------------------------------
@@ -102,6 +105,11 @@ class Article extends Model
 
         static::saved(function (Article $article) {
             $article->syncPendingContentTranslations();
+            event(ArticleChanged::for($article, 'saved'));
+        });
+
+        static::deleted(function (Article $article) {
+            event(ArticleChanged::for($article, 'deleted'));
         });
     }
     
@@ -165,15 +173,22 @@ class Article extends Model
       return $query->where('status', 'PUBLISHED');
     }
 
-    public function scopeAvailableInLocale(Builder $query, string $locale): Builder
+    public function scopeAvailableInRegion(Builder $query, ?string $region): Builder
     {
-        if ($locale === '') {
+        $region = static::normalizeRegionCode($region);
+
+        if ($region === null) {
             return $query;
         }
 
-        static::addTranslationAvailabilityClause($query, $query->qualifyColumn('title'), $locale);
+        $column = $query->qualifyColumn('countries');
+        $emptyClause = sprintf('JSON_LENGTH(%s) = 0', $column);
 
-        return $query;
+        return $query->where(function (Builder $builder) use ($column, $emptyClause, $region) {
+            $builder->whereNull($column)
+                ->orWhereRaw($emptyClause)
+                ->orWhereJsonContains($column, $region);
+        });
     }
 
     public function scopeWithContentLocales(Builder $query, array|string|null $locales = null): Builder
@@ -190,30 +205,21 @@ class Article extends Model
     /**
      * @param  Builder|\Illuminate\Database\Query\Builder  $query
      */
-    public static function addTranslationAvailabilityClause($query, string $qualifiedColumn, string $locale): void
+    public static function addRegionAvailabilityClause($query, string $qualifiedColumn, ?string $region): void
     {
-        if ($locale === '') {
+        $region = static::normalizeRegionCode($region);
+
+        if ($region === null) {
             return;
         }
 
-        [$clause, $bindings] = static::translationAvailabilityClause($qualifiedColumn, $locale);
-        $query->whereRaw($clause, $bindings);
-    }
+        $emptyClause = sprintf('JSON_LENGTH(%s) = 0', $qualifiedColumn);
 
-    protected static function translationAvailabilityClause(string $qualifiedColumn, string $locale): array
-    {
-        $path = static::jsonPathForLocale($locale);
-        $clause = "(JSON_EXTRACT({$qualifiedColumn}, ?) IS NOT NULL"
-            . " AND JSON_UNQUOTE(JSON_EXTRACT({$qualifiedColumn}, ?)) <> '')";
-
-        return [$clause, [$path, $path]];
-    }
-
-    protected static function jsonPathForLocale(string $locale): string
-    {
-        $normalized = str_replace('"', '\"', $locale);
-
-        return '$."'.$normalized.'"';
+        $query->where(function ($builder) use ($qualifiedColumn, $emptyClause, $region) {
+            $builder->whereNull($qualifiedColumn)
+                ->orWhereRaw($emptyClause)
+                ->orWhereJsonContains($qualifiedColumn, $region);
+        });
     }
 
     protected static function normalizeContentLocales(array|string|null $locales): array
@@ -225,11 +231,67 @@ class Article extends Model
         return array_values(array_unique(array_filter(Arr::wrap($locales))));
     }
 
+    protected static function normalizeRegionCode(?string $region): ?string
+    {
+        if (! is_string($region)) {
+            return null;
+        }
+
+        $region = strtolower(trim($region));
+
+        if ($region === '') {
+            return null;
+        }
+
+        if ($region === 'global') {
+            $alias = config('dress.store.global_region_code', 'zz');
+
+            if (is_string($alias) && $alias !== '') {
+                $normalized = strtolower(trim($alias));
+
+                if ($normalized !== '') {
+                    return $normalized;
+                }
+            }
+        }
+
+        return $region;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | ACCESSORS
     |--------------------------------------------------------------------------
     */
+    public function getUniqStringAttribute(): string
+    {
+        $countries = is_array($this->countries) ? implode(', ', $this->countries) : null;
+
+        return $this->formatUniqString([
+            '#'.$this->id,
+            $this->title,
+            $this->slug,
+            sprintf('status: %s', $this->status ?? '-'),
+            $this->published_at ? 'published '.$this->published_at->format('Y-m-d H:i') : null,
+            $countries ? 'countries: '.$countries : null,
+        ]);
+    }
+
+    public function getUniqHtmlAttribute(): string
+    {
+        $countries = is_array($this->countries) ? implode(', ', $this->countries) : null;
+        $headline = $this->formatUniqString([
+            '#'.$this->id,
+            $this->title,
+        ]);
+
+        return $this->formatUniqHtml($headline, [
+            $this->slug,
+            sprintf('status: %s', $this->status ?? '-'),
+            $this->published_at ? 'published '.$this->published_at->format('Y-m-d H:i') : null,
+            $countries ? 'countries: '.$countries : null,
+        ]);
+    }
 
     /**
      * getSlugOrTitleAttribute
@@ -249,14 +311,15 @@ class Article extends Model
     }
     public function getContentAttribute(): ?string
     {
-        $locales = $this->resolveContentLocales();
+        $attempted = [];
+        $content = $this->resolveContentTranslation($this->resolveContentLocales(), $attempted);
 
-        foreach ($locales as $locale) {
-            $content = $this->getContentForLocale($locale, false);
+        if ($content !== null) {
+            return $content;
+        }
 
-            if ($content !== null) {
-                return $content;
-            }
+        if ($this->shouldFallbackToAnyContentLocale()) {
+            return $this->getAnyContentTranslation($attempted);
         }
 
         return null;
@@ -264,38 +327,30 @@ class Article extends Model
 
     public function getContentForLocale(?string $locale = null, bool $useFallback = true): ?string
     {
-        $locale = $locale ?: $this->getLocale();
+        $attempted = [];
 
-        if (! $locale) {
-            $locale = app()->getLocale();
+        $preferredLocales = $locale
+            ? [$locale]
+            : [$this->getLocale(), backpack_translatable_request_locale(), app()->getLocale()];
+
+        $content = $this->resolveContentTranslation($preferredLocales, $attempted);
+
+        if ($content !== null || ! $useFallback) {
+            return $content;
         }
 
-        if (! $locale) {
-            $locale = config('app.fallback_locale');
-        }
+        $fallback = $this->getFallbackContentLocale();
 
-        if (! $locale) {
-            return null;
-        }
+        if ($fallback && ! in_array($fallback, $attempted, true)) {
+            $content = $this->resolveContentTranslation([$fallback], $attempted);
 
-        $entry = $this->findContentEntryForLocale($locale);
-
-        if ($entry) {
-            return $entry->content;
-        }
-
-        if (! $useFallback) {
-            return null;
-        }
-
-        $fallback = config('app.fallback_locale');
-
-        if ($fallback && $fallback !== $locale) {
-            $entry = $this->findContentEntryForLocale($fallback);
-
-            if ($entry) {
-                return $entry->content;
+            if ($content !== null) {
+                return $content;
             }
+        }
+
+        if ($this->shouldFallbackToAnyContentLocale()) {
+            return $this->getAnyContentTranslation($attempted);
         }
 
         return null;
@@ -362,6 +417,23 @@ class Article extends Model
         ]);
     }
 
+    protected function resolveContentTranslation(array $locales, array &$attempted): ?string
+    {
+        $locales = static::normalizeContentLocales($locales);
+
+        foreach ($locales as $locale) {
+            $attempted[] = $locale;
+
+            $entry = $this->findContentEntryForLocale($locale);
+
+            if ($entry && $this->hasNonEmptyContentValue($entry->content)) {
+                return $entry->content;
+            }
+        }
+
+        return null;
+    }
+
     protected function findContentEntryForLocale(string $locale): ?ArticleContent
     {
         if ($locale === '') {
@@ -377,6 +449,66 @@ class Article extends Model
         }
 
         return $this->contents()->where('lang', $locale)->first();
+    }
+
+    protected function shouldFallbackToAnyContentLocale(): bool
+    {
+        if (method_exists($this, 'backpackShouldFallbackToAnyLocale')) {
+            return $this->backpackShouldFallbackToAnyLocale();
+        }
+
+        return true;
+    }
+
+    protected function getFallbackContentLocale(): ?string
+    {
+        return config('app.fallback_locale');
+    }
+
+    protected function getAnyContentTranslation(array $attemptedLocales = []): ?string
+    {
+        $attempted = array_values(array_unique(array_filter(array_map(function ($locale) {
+            return is_string($locale) ? trim($locale) : null;
+        }, $attemptedLocales))));
+
+        if ($this->relationLoaded('contents')) {
+            foreach ($this->contents as $entry) {
+                if ($entry && $this->hasNonEmptyContentValue($entry->content)) {
+                    return $entry->content;
+                }
+
+                if ($entry && is_string($entry->lang)) {
+                    $attempted[] = trim($entry->lang);
+                }
+            }
+
+            $attempted = array_values(array_unique(array_filter($attempted)));
+        }
+
+        if (! $this->exists) {
+            return null;
+        }
+
+        $query = $this->contents()->newQuery();
+
+        if ($attempted !== []) {
+            $query->whereNotIn('lang', $attempted);
+        }
+
+        $entries = $query->orderBy('lang')->get();
+
+        foreach ($entries as $entry) {
+            if ($this->hasNonEmptyContentValue($entry->content)) {
+                return $entry->content;
+            }
+        }
+
+        return null;
+    }
+
+    protected function hasNonEmptyContentValue($value): bool
+    {
+        return $this->calculateTranslationValueLength($value) > 0;
     }
 
     protected function syncPendingContentTranslations(): void
@@ -514,43 +646,4 @@ class Article extends Model
             $this->setContentTranslation($locale, $value);
         }
     }
-
-    // public function setCountriesAttribute($value): void
-    // {
-    //     if ($value === null) {
-    //         $this->attributes['countries'] = null;
-
-    //         return;
-    //     }
-
-    //     if (is_string($value)) {
-    //         $decoded = json_decode($value, true);
-    //         $value = is_array($decoded) ? $decoded : [$value];
-    //     }
-
-    //     if (! is_array($value)) {
-    //         $value = [$value];
-    //     }
-
-    //     $normalized = array_values(array_unique(array_filter(array_map(function ($code) {
-    //         return is_string($code) ? Str::lower(trim($code)) : null;
-    //     }, $value))));
-
-    //     $this->attributes['countries'] = $normalized === [] ? null : json_encode($normalized, JSON_UNESCAPED_UNICODE);
-    // }
-
-    // public function getCountriesAttribute($value): array
-    // {
-    //     if ($value === null) {
-    //         return [];
-    //     }
-
-    //     if (is_array($value)) {
-    //         return $value;
-    //     }
-
-    //     $decoded = json_decode($value, true);
-
-    //     return is_array($decoded) ? $decoded : [];
-    // }
 }
