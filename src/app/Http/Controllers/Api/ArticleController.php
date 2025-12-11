@@ -7,6 +7,7 @@ use \Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 
 use Backpack\Articles\app\Models\Article;
+use Backpack\Articles\app\Http\Resources\ArticleResource;
 use Backpack\Articles\app\Http\Resources\ArticleSmallResource;
 use Backpack\Tag\app\Models\Tag;
 
@@ -56,7 +57,9 @@ class ArticleController extends \App\Http\Controllers\Controller
       return response()->json($e->getMessage(), 404);
     }
 
-    return $article;
+    // dd($article->contentSlices);
+
+    return new ArticleResource($article);
   }
 
   public function random(Request $request) {
@@ -155,7 +158,6 @@ class ArticleController extends \App\Http\Controllers\Controller
 
   protected function extractValuesFromRequest(Request $request, array $keys): Collection
   {
-    // dd($request->all());
     return collect($keys)->flatMap(function ($key) use ($request) {
       if (!$request->has($key)) {
         return [];

@@ -20,6 +20,8 @@ use Backpack\Helpers\Traits\FormatsUniqAttribute;
 // FACTORY
 use Backpack\Articles\database\factories\ArticleFactory;
 
+use Backpack\Articles\app\Traits\SlicesTrait;
+
 class Article extends Model
 {
     use CrudTrait;
@@ -30,6 +32,7 @@ class Article extends Model
     use HasImages;
     use Taggable;
     use FormatsUniqAttribute;
+    use SlicesTrait;
 
     /*
     |--------------------------------------------------------------------------
@@ -68,23 +71,12 @@ class Article extends Model
     |--------------------------------------------------------------------------
     */
     public function toArray(){
-        $tags = $this->relationLoaded('tags')
-            ? $this->tags->map(function ($tag) {
-                return [
-                    'id' => $tag->id,
-                    'text' => $tag->text,
-                ];
-            })->toArray()
-            : [];
 	    return [
 		    'id' => $this->id,
 		    'title' => $this->title,
 		    'slug' => $this->slug,
 		    'excerpt' => $this->excerpt,
-		    'content' => $this->content,
 		    'image' => $this->getFirstImageForApi(),
-            'seo' => $this->seo,
-            'tags' => $tags,
             'time' =>  $this->time,
 	    ];
     }
