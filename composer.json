@@ -20,7 +20,6 @@
   "require": {
     "php": "^8.2",
     "laravel/framework": "^12.0",
-    "parabellumkoval/backpack-images": "@dev",
     "cviebrock/eloquent-sluggable": "^12.0",
     "spatie/laravel-translatable": "^6.0.0"
   },
