@@ -16,6 +16,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use ParabellumKoval\BackpackImages\Traits\HasImages;
 use Backpack\Helpers\Traits\FormatsUniqAttribute;
+use DateTimeInterface;
 
 // FACTORY
 use Backpack\Articles\database\factories\ArticleFactory;
@@ -264,7 +265,7 @@ class Article extends Model
             $this->title,
             $this->slug,
             sprintf('status: %s', $this->status ?? '-'),
-            $this->published_at ? 'published '.$this->published_at->format('Y-m-d H:i') : null,
+            $this->formatPublishedAtForUniqAttribute(),
             $countries ? 'countries: '.$countries : null,
         ]);
     }
@@ -280,7 +281,7 @@ class Article extends Model
         return $this->formatUniqHtml($headline, [
             $this->slug,
             sprintf('status: %s', $this->status ?? '-'),
-            $this->published_at ? 'published '.$this->published_at->format('Y-m-d H:i') : null,
+            $this->formatPublishedAtForUniqAttribute(),
             $countries ? 'countries: '.$countries : null,
         ]);
     }
@@ -301,6 +302,22 @@ class Article extends Model
     public function getTimeAttribute() {
         return $this->extras['reading_time_minutes'] ?? null;
     }
+
+    protected function formatPublishedAtForUniqAttribute(): ?string
+    {
+        $value = $this->published_at;
+
+        if ($value instanceof DateTimeInterface) {
+            return 'published '.$value->format('Y-m-d H:i');
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return 'published '.trim($value);
+        }
+
+        return null;
+    }
+
     public function getContentAttribute(): ?string
     {
         $attempted = [];
