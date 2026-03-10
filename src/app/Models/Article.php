@@ -22,8 +22,9 @@ use DateTimeInterface;
 use Backpack\Articles\database\factories\ArticleFactory;
 
 use Backpack\Articles\app\Traits\SlicesTrait;
+use Backpack\Schedule\Contracts\HasCrudCardInterface;
 
-class Article extends Model
+class Article extends Model implements HasCrudCardInterface
 {
     use CrudTrait;
     use HasFactory;
@@ -249,6 +250,65 @@ class Article extends Model
         }
 
         return $region;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | HasCrudCardInterface Implementation
+    |--------------------------------------------------------------------------
+    */
+    
+    /**
+     * Получить HTML карточки для отображения в CRUD списке
+     */
+    public function getCrudCardHtml(array $options = []): string
+    {
+        $compact = $options['compact'] ?? true;
+        
+        $image = $this->getFirstImageForApi()['url'] ?? null;
+        $title = $this->title ?? 'Без названия';
+        $status = $this->status ?? 'draft';
+        $editUrl = $this->getCrudEditUrl();
+        
+        // Status badge
+        $statusBadge = match($status) {
+            'published' => '<span class="badge badge-success" style="font-size: 9px;">Опубликовано</span>',
+            'draft' => '<span class="badge badge-secondary" style="font-size: 9px;">Черновик</span>',
+            default => '<span class="badge badge-warning" style="font-size: 9px;">' . e($status) . '</span>',
+        };
+        
+        $html = '<div class="article-crud-card" style="display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; ' . ($compact ? 'max-width: 300px;' : '') . '">';
+        
+        // Image
+        if ($image) {
+            $html .= '<div style="flex-shrink: 0;"><img src="' . e($image) . '" alt="' . e($title) . '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;"></div>';
+        } else {
+            $html .= '<div style="flex-shrink: 0; width: 50px; height: 50px; background: #f5f5f5; border-radius: 4px; display: flex; align-items: center; justify-content: center; border: 1px solid #e0e0e0;"><i class="la la-file-alt" style="font-size: 20px; color: #ccc;"></i></div>';
+        }
+        
+        // Info
+        $html .= '<div style="flex-grow: 1; min-width: 0;">';
+        $html .= '<a href="' . e($editUrl) . '" style="color: #333; font-weight: 500; text-decoration: none; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="' . e($title) . '">' . e($title) . '</a>';
+        $html .= '<div style="margin-top: 4px;">' . $statusBadge . '</div>';
+        $html .= '</div></div>';
+        
+        return $html;
+    }
+
+    /**
+     * Получить URL для редактирования записи в админке
+     */
+    public function getCrudEditUrl(): ?string
+    {
+        return backpack_url('article/' . $this->id . '/edit');
+    }
+
+    /**
+     * Получить название записи для отображения
+     */
+    public function getCrudCardTitle(): string
+    {
+        return $this->title ?? 'Статья #' . $this->id;
     }
 
     /*

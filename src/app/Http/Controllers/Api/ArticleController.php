@@ -54,7 +54,10 @@ class ArticleController extends \App\Http\Controllers\Controller
         ->where('slug', $slug)
         ->firstOrFail();
     }catch(ModelNotFoundException $e) {
-      return response()->json($e->getMessage(), 404);
+      return response()->json([
+        'message' => 'Article Not Found',
+        'error' => 'Not Found'
+      ], 404);
     }
 
     // dd($article->contentSlices);
