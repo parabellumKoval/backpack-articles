@@ -5,6 +5,7 @@ Route::group([
   'middleware' => ['web', config('backpack.base.middleware_key', 'admin')],
   'namespace'  => 'Backpack\Articles\app\Http\Controllers\Admin',
 ], function () { 
+    Route::crud('article-category', 'ArticleCategoryCrudController');
     Route::crud('article', 'ArticleCrudController');
     Route::post('article/{id}/toggle', [
         'as' => 'article.toggle',

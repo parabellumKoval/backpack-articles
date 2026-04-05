@@ -28,6 +28,7 @@ class ArticleRequest extends FormRequest
         return [
             'countries' => ['nullable', 'array'],
             'countries.*' => ['string', 'max:10'],
+            'category_id' => ['required', 'integer', 'exists:ak_article_categories,id'],
         ];
     }
 

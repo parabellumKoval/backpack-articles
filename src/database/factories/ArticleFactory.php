@@ -3,8 +3,10 @@
 namespace Backpack\Articles\database\factories;
 
 use Backpack\Articles\app\Models\Article;
+use Backpack\Articles\app\Models\ArticleCategory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class ArticleFactory extends Factory
 {
@@ -34,8 +36,14 @@ class ArticleFactory extends Factory
             $slug = Str::slug($this->faker->uuid());
         }
 
+        $categoryId = null;
+        if (Schema::hasTable('ak_article_categories')) {
+            $categoryId = ArticleCategory::query()->orderBy('lft')->orderBy('id')->value('id');
+        }
+
         return [
             'locale' => $locale,
+            'category_id' => $categoryId,
             'title' => $title,
             'slug' => $slug,
             'excerpt' => $this->faker->paragraph(2, false),

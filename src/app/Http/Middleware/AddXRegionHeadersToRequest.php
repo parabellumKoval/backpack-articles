@@ -11,6 +11,7 @@ class AddXRegionHeadersToRequest
     {
         $region = $this->normalizeCountry($request->header('X-Region') ?? $request->header('X-Country'));
         $lang = $this->preferredLanguage($request->header('Accept-Language'));
+        $storefront = $this->normalizeStorefront($request->header('X-Storefront') ?? $request->input('storefront'));
 
         $payload = [];
 
@@ -21,6 +22,10 @@ class AddXRegionHeadersToRequest
         if ($lang) {
             $payload['lang'] = $lang;
             app()->setLocale($lang);
+        }
+
+        if ($storefront) {
+            $payload['storefront'] = $storefront;
         }
 
         if (!empty($payload)) {
@@ -79,6 +84,18 @@ class AddXRegionHeadersToRequest
         $code = substr($cleaned, 0, 2);
 
         return strlen($code) === 2 ? $code : null;
+    }
+
+    protected function normalizeStorefront(?string $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $cleaned = strtolower(trim($value));
+        $cleaned = preg_replace('/[^a-z0-9_-]/', '', $cleaned);
+
+        return $cleaned !== '' ? $cleaned : null;
     }
 
     protected function regionalContextAvailable(): bool

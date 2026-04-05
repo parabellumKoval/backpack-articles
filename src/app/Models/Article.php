@@ -11,9 +11,11 @@ use Cviebrock\EloquentSluggable\SluggableScopeHelpers;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use ParabellumKoval\BackpackImages\Traits\HasImages;
 use Backpack\Helpers\Traits\FormatsUniqAttribute;
 use DateTimeInterface;
@@ -157,6 +159,11 @@ class Article extends Model implements HasCrudCardInterface
         return $this->hasMany(ArticleContent::class);
     }
 
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ArticleCategory::class, 'category_id');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | SCOPES
@@ -183,6 +190,31 @@ class Article extends Model implements HasCrudCardInterface
                 ->orWhereRaw($emptyClause)
                 ->orWhereJsonContains($column, $region);
         });
+    }
+
+    public function scopeAvailableInStorefront(Builder $query, ?string $storefront = null): Builder
+    {
+        $storefront = static::resolveStorefront($storefront);
+
+        if ($storefront === null) {
+            return $query;
+        }
+
+        if (!static::hasArticleCategoryTable()) {
+            if (static::applyUnassignedToDefaultStorefront() && $storefront !== static::defaultStorefront()) {
+                return $query->whereRaw('1=0');
+            }
+
+            return $query;
+        }
+
+        static::addStorefrontAvailabilityClause(
+            $query,
+            $query->qualifyColumn('category_id'),
+            $storefront
+        );
+
+        return $query;
     }
 
     public function scopeWithContentLocales(Builder $query, array|string|null $locales = null): Builder
@@ -213,6 +245,42 @@ class Article extends Model implements HasCrudCardInterface
             $builder->whereNull($qualifiedColumn)
                 ->orWhereRaw($emptyClause)
                 ->orWhereJsonContains($qualifiedColumn, $region);
+        });
+    }
+
+    /**
+     * @param  Builder|\Illuminate\Database\Query\Builder  $query
+     */
+    public static function addStorefrontAvailabilityClause($query, string $qualifiedColumn, ?string $storefront = null): void
+    {
+        $storefront = static::resolveStorefront($storefront);
+
+        if ($storefront === null) {
+            return;
+        }
+
+        if (!static::hasArticleCategoryTable()) {
+            if (static::applyUnassignedToDefaultStorefront() && $storefront !== static::defaultStorefront()) {
+                $query->whereRaw('1=0');
+            }
+
+            return;
+        }
+
+        $visibleCategoryIds = ArticleCategory::visibleIdsForStorefront($storefront);
+        $defaultStorefront = static::defaultStorefront();
+
+        if ($visibleCategoryIds === []) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($builder) use ($qualifiedColumn, $visibleCategoryIds, $storefront, $defaultStorefront) {
+            $builder->whereIn($qualifiedColumn, $visibleCategoryIds);
+
+            if (static::applyUnassignedToDefaultStorefront() && $storefront === $defaultStorefront) {
+                $builder->orWhereNull($qualifiedColumn);
+            }
         });
     }
 
@@ -250,6 +318,130 @@ class Article extends Model implements HasCrudCardInterface
         }
 
         return $region;
+    }
+
+    protected static function resolveStorefront(?string $storefront = null): ?string
+    {
+        if (!static::isStorefrontEnabled()) {
+            return null;
+        }
+
+        if ($storefront !== null) {
+            return static::normalizeStorefrontCode($storefront);
+        }
+
+        if (app()->bound('request')) {
+            $requestStorefront = request()->get('storefront') ?? request()->header('X-Storefront');
+            if (is_string($requestStorefront) && $requestStorefront !== '') {
+                return static::normalizeStorefrontCode($requestStorefront);
+            }
+        }
+
+        if (class_exists(\Backpack\Store\app\Services\Store::class)) {
+            return \Backpack\Store\app\Services\Store::storefront();
+        }
+
+        return static::defaultStorefront();
+    }
+
+    protected static function normalizeStorefrontCode(?string $storefront): ?string
+    {
+        if (class_exists(\Backpack\Store\app\Services\Store::class)) {
+            return \Backpack\Store\app\Services\Store::normalizeStorefrontCode($storefront);
+        }
+
+        if (!is_string($storefront)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($storefront));
+        $normalized = preg_replace('/[^a-z0-9_-]/', '', $normalized);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    public static function storefrontOptions(): array
+    {
+        if (class_exists(\Backpack\Store\app\Services\Store::class)
+            && \Backpack\Store\app\Services\Store::isStorefrontEnabled()) {
+            return \Backpack\Store\app\Services\Store::storefrontOptions();
+        }
+
+        $options = config('articles.storefront.values', []);
+        if (!is_array($options)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($options as $key => $value) {
+            if (is_array($value)) {
+                $code = static::normalizeStorefrontCode($value['code'] ?? $key);
+                $label = (string) ($value['label'] ?? $code);
+            } else {
+                $code = static::normalizeStorefrontCode(is_int($key) ? (string) $value : (string) $key);
+                $label = (string) $value;
+            }
+
+            if ($code === null) {
+                continue;
+            }
+
+            $normalized[$code] = $label !== '' ? $label : ucfirst($code);
+        }
+
+        $default = static::defaultStorefront();
+        if ($default !== null && !isset($normalized[$default])) {
+            $normalized[$default] = ucfirst($default);
+        }
+
+        return $normalized;
+    }
+
+    public static function defaultStorefrontCode(): ?string
+    {
+        return static::defaultStorefront();
+    }
+
+    protected static function isStorefrontEnabled(): bool
+    {
+        if (class_exists(\Backpack\Store\app\Services\Store::class)
+            && method_exists(\Backpack\Store\app\Services\Store::class, 'isStorefrontEnabled')) {
+            return \Backpack\Store\app\Services\Store::isStorefrontEnabled();
+        }
+
+        return (bool) config('articles.storefront.enabled', false);
+    }
+
+    protected static function defaultStorefront(): ?string
+    {
+        if (class_exists(\Backpack\Store\app\Services\Store::class)
+            && method_exists(\Backpack\Store\app\Services\Store::class, 'defaultStorefront')
+            && \Backpack\Store\app\Services\Store::isStorefrontEnabled()) {
+            return \Backpack\Store\app\Services\Store::defaultStorefront();
+        }
+
+        return static::normalizeStorefrontCode(config('articles.storefront.default', 'main')) ?? 'main';
+    }
+
+    protected static function applyUnassignedToDefaultStorefront(): bool
+    {
+        if (class_exists(\Backpack\Store\app\Services\Store::class)
+            && method_exists(\Backpack\Store\app\Services\Store::class, 'applyUnassignedCategoriesToDefaultStorefront')
+            && \Backpack\Store\app\Services\Store::isStorefrontEnabled()) {
+            return \Backpack\Store\app\Services\Store::applyUnassignedCategoriesToDefaultStorefront();
+        }
+
+        return (bool) config('articles.storefront.apply_unassigned_to_default', true);
+    }
+
+    protected static function hasArticleCategoryTable(): bool
+    {
+        try {
+            return Schema::hasTable('ak_article_categories');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /*
@@ -319,6 +511,9 @@ class Article extends Model implements HasCrudCardInterface
     public function getUniqStringAttribute(): string
     {
         $countries = is_array($this->countries) ? implode(', ', $this->countries) : null;
+        $categoryLabel = $this->relationLoaded('category')
+            ? ($this->category?->uniqTitle)
+            : ($this->category()->value('slug') ? 'category: '.$this->category()->value('slug') : null);
 
         return $this->formatUniqString([
             '#'.$this->id,
@@ -327,12 +522,16 @@ class Article extends Model implements HasCrudCardInterface
             sprintf('status: %s', $this->status ?? '-'),
             $this->formatPublishedAtForUniqAttribute(),
             $countries ? 'countries: '.$countries : null,
+            $categoryLabel,
         ]);
     }
 
     public function getUniqHtmlAttribute(): string
     {
         $countries = is_array($this->countries) ? implode(', ', $this->countries) : null;
+        $categoryLabel = $this->relationLoaded('category')
+            ? ($this->category?->uniqTitle)
+            : ($this->category()->value('slug') ? 'category: '.$this->category()->value('slug') : null);
         $headline = $this->formatUniqString([
             '#'.$this->id,
             $this->title,
@@ -343,6 +542,7 @@ class Article extends Model implements HasCrudCardInterface
             sprintf('status: %s', $this->status ?? '-'),
             $this->formatPublishedAtForUniqAttribute(),
             $countries ? 'countries: '.$countries : null,
+            $categoryLabel,
         ]);
     }
 

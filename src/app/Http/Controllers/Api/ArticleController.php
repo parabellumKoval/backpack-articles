@@ -2,202 +2,252 @@
 
 namespace Backpack\Articles\app\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use \Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Collection;
-
-use Backpack\Articles\app\Models\Article;
 use Backpack\Articles\app\Http\Resources\ArticleResource;
 use Backpack\Articles\app\Http\Resources\ArticleSmallResource;
+use Backpack\Articles\app\Models\Article;
+use Backpack\Articles\app\Models\ArticleCategory;
 use Backpack\Tag\app\Models\Tag;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class ArticleController extends \App\Http\Controllers\Controller
-{ 
+{
+    public function index(Request $request)
+    {
+        $perPage = (int) ($request->input('per_page') ?? config('backpack.articles.per_page', 12));
+        $perPage = max(1, min($perPage, 100));
 
-  public function index(Request $request) {
-    $per_page = (int) ($request->input('per_page') ?? config('backpack.articles.per_page', 12));
-    $per_page = max(1, min($per_page, 100));
-    
-    $region = is_string($request->input('country')) ? $request->input('country') : null;
+        $region = is_string($request->input('country')) ? $request->input('country') : null;
+        $categoryIds = $this->resolveCategoryNodeIds($request);
 
-    $articles = Article::published()
-      ->availableInRegion($region)
-      ->with('tags')
-      ->orderBy('published_at', 'desc');
+        $articles = Article::published()
+            ->availableInRegion($region)
+            ->availableInStorefront()
+            ->with(['tags', 'category'])
+            ->orderBy('published_at', 'desc');
 
-    $tagIds = $this->extractTagIds($request);
-    if (!empty($tagIds)) {
-      $articles->whereHasTags($tagIds);
+        $this->applyCategoryFilter($articles, $categoryIds);
+
+        $tagIds = $this->extractTagIds($request);
+        if ($tagIds !== []) {
+            $articles->whereHasTags($tagIds);
+        }
+
+        $tagValues = $this->extractTagValues($request);
+        if ($tagValues !== []) {
+            $articles->whereHas('tags', function ($relation) use ($tagValues) {
+                $relation->whereIn('ak_tags.value', $tagValues);
+            });
+        }
+
+        return ArticleSmallResource::collection(
+            $articles->paginate($perPage)->appends($request->query())
+        );
     }
 
-    $tagTexts = $this->extractTagTexts($request);
-    if (!empty($tagTexts)) {
-      $articles->whereHas('tags', function ($relation) use ($tagTexts) {
-        $relation->whereIn('ak_tags.text', $tagTexts);
-      });
+    public function show(Request $request, $slug)
+    {
+        $locale = app()->getLocale();
+        $region = is_string($request->input('country')) ? $request->input('country') : null;
+
+        try {
+            $article = Article::published()
+                ->availableInRegion($region)
+                ->availableInStorefront()
+                ->with(['tags', 'category'])
+                ->withContentLocales([$locale, config('app.fallback_locale')])
+                ->where('slug', $slug)
+                ->firstOrFail();
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Article Not Found',
+                'error' => 'Not Found',
+            ], 404);
+        }
+
+        return new ArticleResource($article);
     }
 
-    $articles = $articles->paginate($per_page)->appends($request->query());
-    $articles = ArticleSmallResource::collection($articles);
+    public function random(Request $request)
+    {
+        $limit = max(1, min((int) ($request->input('limit') ?? 4), 24));
+        $region = is_string($request->input('country')) ? $request->input('country') : null;
+        $categoryIds = $this->resolveCategoryNodeIds($request);
 
-    return $articles;
-  }
+        $articles = Article::published()
+            ->availableInRegion($region)
+            ->availableInStorefront()
+            ->when($request->input('not_id'), function ($query) use ($request) {
+                $query->where('id', '!=', $request->input('not_id'));
+            })
+            ->with(['tags', 'category'])
+            ->inRandomOrder()
+            ->limit($limit);
 
-  public function show(Request $request, $slug) {
-    $locale = app()->getLocale();
-    $region = is_string($request->input('country')) ? $request->input('country') : null;
-    try{
-      $article = Article::published()
-        ->availableInRegion($region)
-        ->with('tags')
-        ->withContentLocales([$locale, config('app.fallback_locale')])
-        ->where('slug', $slug)
-        ->firstOrFail();
-    }catch(ModelNotFoundException $e) {
-      return response()->json([
-        'message' => 'Article Not Found',
-        'error' => 'Not Found'
-      ], 404);
+        $this->applyCategoryFilter($articles, $categoryIds);
+
+        return ArticleSmallResource::collection($articles->get());
     }
 
-    // dd($article->contentSlices);
+    public function groupedByTags(Request $request)
+    {
+        $perTag = (int) ($request->input('per_tag') ?? $request->input('per_page') ?? config('backpack.articles.per_tag', 4));
+        $perTag = max(1, min($perTag, 50));
 
-    return new ArticleResource($article);
-  }
+        $region = is_string($request->input('country')) ? $request->input('country') : null;
+        $tagIds = $this->extractTagIds($request);
+        $tagValues = $this->extractTagValues($request);
+        $categoryIds = $this->resolveCategoryNodeIds($request);
 
-  public function random(Request $request) {
-    $limit = request('limit') ?? 4;
-    $region = is_string($request->input('country')) ? $request->input('country') : null;
-    
-    $articles = Article::published()
-                  ->availableInRegion($region)
-                  ->when($request->input('not_id'), function($query) use ($request) {
-                    $query->where('id', '!=', $request->input('not_id'));
-                  })
-                  ->with('tags')
-                  ->inRandomOrder()
-                  ->limit($limit)
-                  ->get();
+        $tagsQuery = Tag::query()
+            ->whereExists(function ($query) use ($region, $categoryIds) {
+                $query->select('id')
+                    ->from('ak_taggables')
+                    ->whereColumn('ak_taggables.tag_id', 'ak_tags.id')
+                    ->where('ak_taggables.taggable_type', (new Article())->getMorphClass())
+                    ->whereExists(function ($subQuery) use ($region, $categoryIds) {
+                        $subQuery->select('id')
+                            ->from('ak_articles')
+                            ->whereColumn('ak_articles.id', 'ak_taggables.taggable_id')
+                            ->where('ak_articles.status', 'PUBLISHED');
 
-    $articles = ArticleSmallResource::collection($articles);
+                        Article::addRegionAvailabilityClause($subQuery, 'ak_articles.countries', $region);
+                        Article::addStorefrontAvailabilityClause($subQuery, 'ak_articles.category_id');
 
-    return $articles;
-  }
+                        if ($categoryIds !== []) {
+                            $subQuery->whereIn('ak_articles.category_id', $categoryIds);
+                        }
+                    });
+            })
+            ->orderBy('value');
 
-  public function groupedByTags(Request $request)
-  {
-    $perTag = (int) ($request->input('per_tag') ?? $request->input('per_page') ?? config('backpack.articles.per_tag', 4));
-    $perTag = max(1, min($perTag, 50));
+        if ($tagIds !== []) {
+            $tagsQuery->whereIn('id', $tagIds);
+        }
 
-    $locale = app()->getLocale();
-    $region = is_string($request->input('country')) ? $request->input('country') : null;
-    $tagIds = $this->extractTagIds($request);
-    $tagTexts = $this->extractTagTexts($request);
+        if ($tagValues !== []) {
+            $tagsQuery->whereIn('value', $tagValues);
+        }
 
-    // Get tags that have published articles in the current locale
-    $tagsQuery = Tag::query()
-      ->whereExists(function ($query) use ($locale, $region) {
-        $query->select('id')
-              ->from('ak_taggables')
-              ->whereColumn('ak_taggables.tag_id', 'ak_tags.id')
-              ->where('ak_taggables.taggable_type', (new Article)->getMorphClass())
-              ->whereExists(function ($subQuery) use ($locale, $region) {
-                $subQuery->select('id')
-                         ->from('ak_articles')
-                         ->whereColumn('ak_articles.id', 'ak_taggables.taggable_id')
-                         ->where('ak_articles.status', 'PUBLISHED');
-                Article::addRegionAvailabilityClause($subQuery, 'ak_articles.countries', $region);
-              });
-      })
-      ->orderBy('value');
+        $tags = $tagsQuery->get();
 
-    if (!empty($tagIds)) {
-      $tagsQuery->whereIn('id', $tagIds);
+        return $tags->mapWithKeys(function ($tag) use ($request, $perTag, $region, $categoryIds) {
+            $articles = $tag->getTaggedModels(Article::class)
+                ->published()
+                ->availableInRegion($region)
+                ->availableInStorefront()
+                ->with(['tags', 'category'])
+                ->orderBy('published_at', 'desc');
+
+            $this->applyCategoryFilter($articles, $categoryIds);
+
+            return [
+                $tag->value => ArticleSmallResource::collection(
+                    $articles->limit($perTag)->get()
+                )->toArray($request),
+            ];
+        })->toArray();
     }
 
-    if (!empty($tagTexts)) {
-      $tagsQuery->whereIn('value', $tagTexts);
+    protected function extractTagIds(Request $request): array
+    {
+        return $this->extractValuesFromRequest($request, ['tag_id', 'tag_ids', 'tag', 'tags'])
+            ->filter(fn ($value) => is_numeric($value))
+            ->map(fn ($value) => (int) $value)
+            ->unique()
+            ->values()
+            ->all();
     }
 
-    $tags = $tagsQuery->get();
+    protected function extractTagValues(Request $request): array
+    {
+        return $this->extractValuesFromRequest($request, ['tag_text', 'tag_texts', 'tag_name', 'tag', 'tags'])
+            ->filter(fn ($value) => !is_numeric($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
 
-    $grouped = $tags->mapWithKeys(function ($tag) use ($request, $locale, $perTag, $region) {
-      $articles = $tag->getTaggedModels(Article::class)
-        ->published()
-        ->availableInRegion($region)
-        ->with('tags')
-        ->orderBy('published_at', 'desc')
-        ->limit($perTag)
-        ->get();
+    protected function resolveCategoryNodeIds(Request $request): array
+    {
+        $allValues = $this->extractValuesFromRequest($request, [
+            'category_id',
+            'category_ids',
+            'category_slug',
+            'category_slugs',
+            'category',
+            'categories',
+        ]);
 
-      return [
-        $tag->value => ArticleSmallResource::collection($articles)->toArray($request),
-      ];
-    })->toArray();
+        $ids = $allValues
+            ->filter(fn ($value) => is_numeric($value))
+            ->map(fn ($value) => (int) $value)
+            ->filter(fn (int $value) => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
 
-    return $grouped;
-  }
+        $slugs = $allValues
+            ->filter(fn ($value) => !is_numeric($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
 
-  protected function extractTagIds(Request $request): array
-  {
-    return $this->extractValuesFromRequest($request, ['tag_id', 'tag_ids', 'tags', 'tag'])
-      ->filter(fn ($value) => is_numeric($value))
-      ->map(fn ($value) => (int) $value)
-      ->unique()
-      ->values()
-      ->all();
-  }
+        return ArticleCategory::expandIdsToSubtree($ids, $slugs);
+    }
 
-  protected function extractTagTexts(Request $request): array
-  {
-    return $this->extractValuesFromRequest($request, ['tag_text', 'tag_texts', 'tag_name', 'tag', 'tags'])
-      ->map(fn ($value) => (string) $value)
-      ->map(fn ($value) => trim($value))
-      ->filter(fn ($value) => $value !== '')
-      ->unique()
-      ->values()
-      ->all();
-  }
+    protected function extractValuesFromRequest(Request $request, array $keys): Collection
+    {
+        return collect($keys)->flatMap(function ($key) use ($request) {
+            if (!$request->has($key)) {
+                return [];
+            }
 
-  protected function extractValuesFromRequest(Request $request, array $keys): Collection
-  {
-    return collect($keys)->flatMap(function ($key) use ($request) {
-      if (!$request->has($key)) {
-        return [];
-      }
+            $value = $request->input($key);
 
-      $value = $request->input($key);
+            if (is_array($value)) {
+                return collect($value)->flatMap(function ($item) {
+                    if ($item === null) {
+                        return [];
+                    }
 
-      if (is_array($value)) {
-        return collect($value)->flatMap(function ($item) {
-          if ($item === null) {
-            return [];
-          }
+                    if (is_array($item)) {
+                        return $item;
+                    }
 
-          if (is_array($item)) {
-            return $item;
-          }
+                    if (is_string($item)) {
+                        return array_map('trim', explode(',', $item));
+                    }
 
-          if (is_string($item)) {
-            return array_map('trim', explode(',', $item));
-          }
+                    return [$item];
+                });
+            }
 
-          return [$item];
-        });
-      }
+            if (is_string($value)) {
+                return array_map('trim', explode(',', $value));
+            }
 
-      if (is_string($value)) {
-        return array_map('trim', explode(',', $value));
-      }
+            return [$value];
+        })->filter(function ($value) {
+            if (is_string($value)) {
+                return $value !== '';
+            }
 
-      return [$value];
-    })->filter(function ($value) {
-      if (is_string($value)) {
-        return $value !== '';
-      }
+            return $value !== null;
+        })->values();
+    }
 
-      return $value !== null;
-    })->values();
-  }
+    protected function applyCategoryFilter($query, array $categoryIds): void
+    {
+        if ($categoryIds === []) {
+            return;
+        }
 
+        $query->whereIn('category_id', $categoryIds);
+    }
 }

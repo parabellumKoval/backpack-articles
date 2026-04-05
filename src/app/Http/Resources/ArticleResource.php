@@ -21,11 +21,18 @@ class ArticleResource extends JsonResource
             'excerpt' => $this->excerpt,
             'image' => $this->getFirstImageForApi(),
             'seo' => $this->seo,
+            'category' => $this->when($this->resource->relationLoaded('category') && $this->category, function () {
+                return [
+                    'id' => $this->category->id,
+                    'name' => $this->category->name,
+                    'slug' => $this->category->slug,
+                ];
+            }),
             'tags' => $this->resource->relationLoaded('tags')
                 ? $this->tags->map(function ($tag) {
                     return [
                         'id' => $tag->id,
-                        'text' => $tag->text,
+                        'text' => $tag->value ?? $tag->text,
                     ];
                 })->values()
                 : [],

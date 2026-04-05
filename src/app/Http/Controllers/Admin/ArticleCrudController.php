@@ -3,18 +3,14 @@
 namespace Backpack\Articles\app\Http\Controllers\Admin;
 
 use Backpack\Articles\app\Http\Requests\ArticleRequest;
+use Backpack\Articles\app\Models\Article;
+use Backpack\Articles\app\Models\ArticleCategory;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
-
-use ParabellumKoval\BackpackImages\Traits\HasImagesCrudComponents;
-use Backpack\Tag\app\Traits\TagFields;
 use Backpack\Helpers\Traits\Admin\HasSeoFilters;
+use Backpack\Tag\app\Traits\TagFields;
+use ParabellumKoval\BackpackImages\Traits\HasImagesCrudComponents;
 
-/**
- * Class BannerCrudController
- * @package App\Http\Controllers\Admin
- * @property-read CrudPanel $crud
- */
 class ArticleCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
@@ -22,9 +18,7 @@ class ArticleCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\BulkDeleteOperation;
-    // use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ServiceOperation;
-    
     use HasImagesCrudComponents;
     use TagFields;
     use HasSeoFilters;
@@ -32,18 +26,18 @@ class ArticleCrudController extends CrudController
 
     public function setup()
     {
-        $this->crud->setModel('Backpack\Articles\app\Models\Article');
+        $this->crud->setModel(Article::class);
         $this->crud->setRoute(config('backpack.base.route_prefix') . '/article');
         $this->crud->setEntityNameStrings('статья', 'Статьи');
     }
 
     protected function setupListOperation()
-    {   
-
+    {
         $this->setupFilers();
 
-
         $countryOptions = $this->getCountryOptions();
+        $categoryOptions = ArticleCategory::optionsForSelect();
+        $storefrontOptions = ArticleCategory::storefrontOptions();
 
         $this->addSeoFilledFilter([
             'name' => 'seo_status',
@@ -75,14 +69,42 @@ class ArticleCrudController extends CrudController
             'name' => 'country',
             'label' => 'Страна',
             'type' => 'select2',
-        ], function () use ($countryOptions) {
-            return $countryOptions;
-        }, function ($country) {
+        ], $countryOptions, function ($country) {
             $normalized = strtolower(trim((string) $country));
 
             if ($normalized !== '') {
                 $this->crud->query->whereJsonContains('countries', $normalized);
             }
+        });
+
+        if ($storefrontOptions !== []) {
+            $this->crud->addFilter([
+                'name' => 'storefront',
+                'label' => 'Storefront',
+                'type' => 'select2',
+            ], $storefrontOptions, function ($storefront) {
+                $categoryIds = ArticleCategory::visibleIdsForStorefront((string) $storefront);
+
+                if ($categoryIds === []) {
+                    $this->crud->query->whereRaw('1=0');
+                    return;
+                }
+
+                $this->crud->query->whereIn('category_id', $categoryIds);
+            });
+        }
+
+        $this->crud->addFilter([
+            'name' => 'category_id',
+            'label' => 'Категория статьи',
+            'type' => 'select2',
+        ], $categoryOptions, function ($value) {
+            if (!is_numeric($value)) {
+                return;
+            }
+
+            $ids = ArticleCategory::expandIdsToSubtree([(int) $value]);
+            $this->crud->query->whereIn('category_id', $ids === [] ? [-1] : $ids);
         });
 
         $this->crud->addFilter([
@@ -110,14 +132,23 @@ class ArticleCrudController extends CrudController
         CRUD::addColumn([
             'name' => 'title',
             'label' => 'Название',
-            'type' => 'text_progress'
+            'type' => 'text_progress',
         ]);
 
         CRUD::addColumn([
             'name' => 'slug',
             'label' => 'Slug',
         ]);
-        
+
+        // CRUD::addColumn([
+        //     'name' => 'category',
+        //     'label' => 'Категория статьи',
+        //     'type' => 'closure',
+        //     'function' => function ($entry) {
+        //         return $entry->category?->uniqTitle ?? '—';
+        //     },
+        // ]);
+
         CRUD::addColumn([
             'name' => 'seo',
             'label' => 'SEO',
@@ -140,11 +171,11 @@ class ArticleCrudController extends CrudController
                 ],
             ],
         ]);
-        
+
         CRUD::addColumn([
             'name' => 'published_at',
             'label' => 'Дата',
-            'type' => 'datetime'
+            'type' => 'datetime',
         ]);
 
         CRUD::addColumn([
@@ -168,134 +199,140 @@ class ArticleCrudController extends CrudController
             },
         ]);
 
+        CRUD::addColumn([
+            'name' => 'category_storefront',
+            'label' => 'Storefront',
+            'type' => 'closure',
+            'function' => function ($entry) {
+                return $entry->category?->getAdminStorefrontsLabel() ?? '—';
+            },
+        ]);
+
         $this->setupTagColumns();
     }
 
     protected function setupCreateOperation()
     {
-      $this->crud->setValidation(ArticleRequest::class);
-			
-      $countryOptions = $this->getCountryOptions();
+        $this->crud->setValidation(ArticleRequest::class);
 
-      $this->crud->addField([
-          'name' => 'countries',
-          'label' => 'Страны',
-          'type' => 'select2_from_array',
-          'options' => $countryOptions,
-          'allows_null' => true,
-          'allows_multiple' => true,
-          'tab' => 'Основное',
-          'hint' => 'Оставьте пустым, чтобы статья была доступна во всех странах',
-      ]);
+        $countryOptions = $this->getCountryOptions();
+        $categoryOptions = ArticleCategory::optionsForSelect();
 
-      $this->crud->addField([
-          'name' => 'title',
-          'label' => 'Заголовок',
-          'type' => 'text',
-          'placeholder' => 'Название статьи',
-          'tab' => 'Основное',
-          'translatable' => true,
-      ]);
+        $this->crud->addField([
+            'name' => 'countries',
+            'label' => 'Страны',
+            'type' => 'select2_from_array',
+            'options' => $countryOptions,
+            'allows_null' => true,
+            'allows_multiple' => true,
+            'tab' => 'Основное',
+            'hint' => 'Оставьте пустым, чтобы статья была доступна во всех странах',
+        ]);
 
-      $this->crud->addField([
-          'name' => 'slug',
-          'label' => 'Slug (URL)',
-          'type' => 'text',
-          'hint' => 'Если оставить пустым будет сгенерирован из названия автоматически',
-          'tab' => 'Основное'
-      ]);
+        $this->crud->addField([
+            'name' => 'category_id',
+            'label' => 'Категория статьи',
+            'type' => 'select2_from_array',
+            'options' => $categoryOptions,
+            'allows_null' => false,
+            'tab' => 'Основное',
+        ]);
 
-      $this->crud->addField([
-          'name' => 'published_at',
-          'label' => 'Дата публикации',
-          'type' => 'datetime',
-          'tab' => 'Основное'
-      ]);
+        $this->crud->addField([
+            'name' => 'title',
+            'label' => 'Заголовок',
+            'type' => 'text',
+            'placeholder' => 'Название статьи',
+            'tab' => 'Основное',
+            'translatable' => true,
+        ]);
 
-      $this->crud->addField([
-          'name' => 'content',
-          'label' => 'Содержание',
-          'type' => 'ckeditor',
-          'placeholder' => 'Полный текст',
-          'tab' => 'Основное',
-          'translatable' => true,
-      ]);
+        $this->crud->addField([
+            'name' => 'slug',
+            'label' => 'Slug (URL)',
+            'type' => 'text',
+            'hint' => 'Если оставить пустым будет сгенерирован из названия автоматически',
+            'tab' => 'Основное',
+        ]);
 
-      $this->crud->addField([
-          'name' => 'excerpt',
-          'label' => 'Краткое описание',
-          'type' => 'ckeditor',
-          'tab' => 'Основное',
-          'translatable' => true,
-      ]);
+        $this->crud->addField([
+            'name' => 'published_at',
+            'label' => 'Дата публикации',
+            'type' => 'datetime',
+            'tab' => 'Основное',
+        ]);
 
-      $this->crud->addField([
-          'name' => 'reading_time_minutes',
-          'label' => 'Минуты чтения',
-          'type' => 'number',
-          'attributes' => [
-              'min' => 1,
-              'step' => 1,
-          ],
-          'fake' => true,
-          'store_in' => 'extras',
-          'tab' => 'Основное'
-      ]);
+        $this->crud->addField([
+            'name' => 'content',
+            'label' => 'Содержание',
+            'type' => 'ckeditor',
+            'placeholder' => 'Полный текст',
+            'tab' => 'Основное',
+            'translatable' => true,
+        ]);
 
-      // $this->crud->addField([
-      //     'label' => 'Category',
-      //     'type' => 'relationship',
-      //     'name' => 'category_id',
-      //     'entity' => 'category',
-      //     'attribute' => 'name',
-      //     'inline_create' => true,
-      //     'ajax' => true,
-      // ]);
-      
-      $this->crud->addField([
-          'name' => 'status',
-          'label' => 'Статус',
-          'type' => 'select_from_array',
-          'options' => [
-              'PUBLISHED' => 'PUBLISHED',
-              'DRAFT' => 'DRAFT',
-          ],
-          'tab' => 'Основное'
-      ]);
+        $this->crud->addField([
+            'name' => 'excerpt',
+            'label' => 'Краткое описание',
+            'type' => 'ckeditor',
+            'tab' => 'Основное',
+            'translatable' => true,
+        ]);
 
-      $this->setupTagFields();
-      $this->crud->modifyField('tags', ['tab' => 'Основное']);
+        $this->crud->addField([
+            'name' => 'reading_time_minutes',
+            'label' => 'Минуты чтения',
+            'type' => 'number',
+            'attributes' => [
+                'min' => 1,
+                'step' => 1,
+            ],
+            'fake' => true,
+            'store_in' => 'extras',
+            'tab' => 'Основное',
+        ]);
 
+        $this->crud->addField([
+            'name' => 'status',
+            'label' => 'Статус',
+            'type' => 'select_from_array',
+            'options' => [
+                'PUBLISHED' => 'PUBLISHED',
+                'DRAFT' => 'DRAFT',
+            ],
+            'tab' => 'Основное',
+        ]);
+
+        $this->setupTagFields();
+        $this->crud->modifyField('tags', ['tab' => 'Основное']);
 
         $this->addImagesField();
 
-      // META TITLE
-      $this->crud->addField([
-          'name' => 'meta_title',
-          'label' => "Meta Title", 
-        'type' => 'countable_textarea',
-        'fake' => true, 
-        'store_in' => 'seo',
-        'tab' => 'SEO',
-        'translatable' => true,
-        'rows' => 2,
-        'resizable' => true,
-        'recommended_length' => 70,
-      ]);
-      
-      // META DESCRIPTION
-      $this->crud->addField([
-        'name' => 'meta_description',
-        'label' => "Meta Description", 
-        'type' => 'countable_textarea',
-        'fake' => true, 
-        'store_in' => 'seo',
-        'tab' => 'SEO',
-        'translatable' => true,
-        'rows' => 3,
-        'resizable' => true,
-        'recommended_length' => 160,
-      ]);
+        $this->crud->addField([
+            'name' => 'meta_title',
+            'label' => 'Meta Title',
+            'type' => 'countable_textarea',
+            'fake' => true,
+            'store_in' => 'seo',
+            'tab' => 'SEO',
+            'translatable' => true,
+            'rows' => 2,
+            'resizable' => true,
+            'recommended_length' => 70,
+        ]);
+
+        $this->crud->addField([
+            'name' => 'meta_description',
+            'label' => 'Meta Description',
+            'type' => 'countable_textarea',
+            'fake' => true,
+            'store_in' => 'seo',
+            'tab' => 'SEO',
+            'translatable' => true,
+            'rows' => 3,
+            'resizable' => true,
+            'recommended_length' => 160,
+        ]);
     }
 
     protected function setupUpdateOperation()
@@ -303,14 +340,11 @@ class ArticleCrudController extends CrudController
         $this->setupCreateOperation();
     }
 
-    /**
-     * @return array<string, string>
-     */
     protected function getCountryOptions(): array
     {
         $options = config('articles.countries', []);
 
-        if (! is_array($options)) {
+        if (!is_array($options)) {
             return [];
         }
 
